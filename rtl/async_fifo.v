@@ -82,7 +82,7 @@ module async_fifo
     );
 
     generate
-        if (FALLTHROUGH == "TRUE" && DEVICE == "FPGA") begin : gen_fwft_reader
+        if (FALLTHROUGH == "TRUE") begin : gen_fwft_reader
 
             // The FWFT reader prefetches from the synchronous RAM so rdata is
             // valid whenever rempty is low.
