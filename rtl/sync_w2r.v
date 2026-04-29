@@ -11,10 +11,13 @@ module sync_w2r
     )(
     input  wire              rclk,
     input  wire              rrst_n,
+
+    (* ASYNC_REG = "TRUE" *) 
     output reg  [ASIZE:0] rq2_wptr,
     input  wire [ASIZE:0] wptr
     );
 
+    (* ASYNC_REG = "TRUE" *) 
     reg [ASIZE:0] rq1_wptr;
 
     always @(posedge rclk or negedge rrst_n) begin
