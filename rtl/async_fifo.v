@@ -9,7 +9,7 @@ module async_fifo
     #(
         parameter DSIZE = 8,
         parameter ASIZE = 4,
-        parameter FALLTHROUGH = "TRUE" // First word fall-through without latency
+        parameter FALLTHROUGH = "TRUE" // First word fall-through using read-side prefetch
     )(
         input  wire             wclk,
         input  wire             wrst_n,
@@ -27,6 +27,8 @@ module async_fifo
 
     wire [ASIZE-1:0] waddr, raddr;
     wire [ASIZE  :0] wptr, rptr, wq2_rptr, rq2_wptr;
+    wire             rclken;
+    wire [DSIZE-1:0] ram_rdata;
 
     // The module synchronizing the read point
     // from read to write domain
@@ -66,11 +68,11 @@ module async_fifo
 
     // The DC-RAM
     fifomem
-    #(DSIZE, ASIZE, FALLTHROUGH)
+    #(DSIZE, ASIZE)
     fifomem (
-    .rclken (rinc),
+    .rclken (rclken),
     .rclk   (rclk),
-    .rdata  (rdata),
+    .rdata  (ram_rdata),
     .wdata  (wdata),
     .waddr  (waddr),
     .raddr  (raddr),
@@ -79,19 +81,49 @@ module async_fifo
     .wclk   (wclk)
     );
 
-    // The module handling read requests
-    rptr_empty
-    #(ASIZE)
-    rptr_empty (
-    .arempty  (arempty),
-    .rempty   (rempty),
-    .raddr    (raddr),
-    .rptr     (rptr),
-    .rq2_wptr (rq2_wptr),
-    .rinc     (rinc),
-    .rclk     (rclk),
-    .rrst_n   (rrst_n)
-    );
+    generate
+        if (FALLTHROUGH == "TRUE" && DEVICE == "FPGA") begin : gen_fwft_reader
+
+            // The FWFT reader prefetches from the synchronous RAM so rdata is
+            // valid whenever rempty is low.
+            rptr_empty_fwft
+            #(ASIZE, DSIZE)
+            rptr_empty (
+            .arempty  (arempty),
+            .rempty   (rempty),
+            .ram_rdata (ram_rdata),
+            .rdata    (rdata),
+            .rclken   (rclken),
+            .raddr    (raddr),
+            .rptr     (rptr),
+            .rq2_wptr (rq2_wptr),
+            .rinc     (rinc),
+            .rclk     (rclk),
+            .rrst_n   (rrst_n)
+            );
+
+        end
+        else begin : gen_registered_reader
+
+            assign rclken = rinc & ~rempty;
+            assign rdata = ram_rdata;
+
+            // The module handling read requests
+            rptr_empty
+            #(ASIZE)
+            rptr_empty (
+            .arempty  (arempty),
+            .rempty   (rempty),
+            .raddr    (raddr),
+            .rptr     (rptr),
+            .rq2_wptr (rq2_wptr),
+            .rinc     (rinc),
+            .rclk     (rclk),
+            .rrst_n   (rrst_n)
+            );
+
+        end
+    endgenerate
 
 endmodule
 
